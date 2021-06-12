@@ -1,0 +1,4 @@
+APIKEY = 973cb328df8e95570eac7cd8228ae430-2416cf28-e3260ee5
+JWT = keytoaccount123
+URL = http://localhost:3000
+LOGIN = jwtlogin
