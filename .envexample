@@ -2,3 +2,7 @@ APIKEY = 973cb328df8e95570eac7cd8228ae430-2416cf28-e3260ee5
 JWT = keytoaccount123
 URL = http://localhost:3000
 LOGIN = jwtlogin
+DOMAIN = mg.carsync.io
+SID = AC0e1268ca4d9d63a8357bd4cd4d4442c3
+TOKEN = 16d21b876d06c57ae1dbf71ab07be1c7
+NUMBER = +15103301496
