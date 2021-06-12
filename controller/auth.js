@@ -5,6 +5,12 @@ const jwt = require('jsonwebtoken');
 const mailgun = require("mailgun-js");
 const mg = mailgun({apiKey: process.env.APIKEY, domain: process.env.DOMAIN})
 
+const accountSid = process.env.SID;
+const authToken = process.env.TOKEN;
+const tw = require('twilio')(accountSid, authToken);
+
+const otp = Math.floor(10000 +Math.random()*90000);
+
 
 exports.singup = async function(req, res)
 {
@@ -17,7 +23,7 @@ exports.singup = async function(req, res)
      
         }
      
-        const token = jwt.sign({email, password}, process.env.JWT, {expiresIn:"10m"})
+        const token = await jwt.sign({email, password}, process.env.JWT, {expiresIn:"10m"})
 
 const data = {
     from: "luka@grujic.com",
@@ -45,6 +51,8 @@ exports.emailActivate = async function(req, res) {
 const {token} = req.body;
 if(token)
 {
+    return res.json({error: "Don't have token"})
+}
    await jwt.verify(token, process.env.JWT, async(error, openToken)=>
     {
         if(error)
@@ -75,12 +83,7 @@ if(token)
        
     });
 }
-else
-{
-    return res.json({error: "Don't have token"})
-}
 
-}
 
 exports.logIn = async function(req, res)
 {
@@ -96,11 +99,20 @@ exports.logIn = async function(req, res)
         {
             return res.status(400).json({error: `Bad password `});
         }
-        if(sms)
+        if(user.sms != false)
         {
+           
+await tw.messages.create({
+            body: `Verify code is ${otp}`,
+            from: process.env.NUMBER,
+            to: user.phone
+}, (err)=> {if(err)
+            { return res.status(400).json({error: `Don't send `});
             
-        }
-        const token = jwt.sign({email, password}, process.env.LOGIN, {expiresIn:"3d"})
+        }});
+        return res.status(200).json({message: `Verify `});
+    }
+        const token = await jwt.sign({email, password}, process.env.LOGIN, {expiresIn:"3d"})
         
         res.json({token})
  
@@ -148,7 +160,7 @@ if(!token)
 
 }
 
-exports.smsrequset = async function(req, res)
+exports.smsrequest = async function(req, res)
 {
     const{token, sms,phone} = req.body;
     if(!token || !sms || !phone)
@@ -181,5 +193,22 @@ exports.smsrequset = async function(req, res)
 
 
          });
+
+}
+exports.smsverify = async function(req, res)
+{
+const {code, email, password} = req.body
+if(!code)
+{
+    return res.json({error: "Don't have code"})
+}
+
+if(otp != Number(code))
+{
+    return res.status(400).json({error: `Don't good code`});
+}
+const token = await jwt.sign({email, password}, process.env.LOGIN, {expiresIn:"3d"})
+        
+ return res.json({token})
 
 }
