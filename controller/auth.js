@@ -101,14 +101,20 @@ exports.logIn = async function (req, res) {
 
   const otp = verifyCode(user._id);
 
-  const twRes = await tw.messages.create({
-    body: `Verify code is ${otp}`,
-    from: process.env.NUMBER,
-    to: user.phone,
-  });
-  if (twRes.error) {
-    return res.status(400).json({ error: `SMS for verification don't send ` });
-  }
+  await tw.messages.create(
+    {
+      body: `Verify code is ${otp}`,
+      from: process.env.NUMBER,
+      to: user.phone,
+    },
+    (error) => {
+      if (error) {
+        return res
+          .status(400)
+          .json({ error: `SMS for verification don't send: ${error.message}` });
+      }
+    }
+  );
 
   return res.status(200).json({ message: `Your SMS send for login ` });
 };
@@ -173,23 +179,25 @@ exports.smsrequest = async function (req, res) {
   });
 };
 exports.smsverify = async function (req, res) {
-  const { code, email, password } = req.body;
+  const { code } = req.body;
   if (!code) {
     return res.json({ error: "Don't have code in input field." });
   }
-  const dva = await Code.findOne({ code: code }, (error) => {
+
+  const userCode = await Code.findOne({ code: code }, (error) => {
     if (error) {
       return res.json({ error: "Don't have code in base." });
     }
-  })
-    .populate({ path: "user" })
-    .exec(async(error, user) => {
-      if (error) {
-        return res.json({ error: "Don't have user in base." });
-      }
-      const token = await jwt.sign({ email, password }, process.env.LOGIN, {
-        expiresIn: "3d",
-      });
-      return res.json({ token });
-    });
+  }).populate({ path: "user" });
+
+  if (!userCode.user) {
+    return res.json({ error: "Don't have user in base." });
+  }
+  let email = userCode.user.email;
+  let password = userCode.user.password;
+
+  const token = await jwt.sign({ email, password }, process.env.LOGIN, {
+    expiresIn: "3d",
+  });
+  return res.json({ token });
 };
