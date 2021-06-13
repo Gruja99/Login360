@@ -13,7 +13,7 @@ localhost:3000/email-activate
 Parametri: token iz mejla
 Odgovor: Poruka o prijavi
 
-3.Login
+3. Login
 localhost:3000/login
 Parametri: email i password
 Odgovor: token
