@@ -45,11 +45,11 @@ exports.singup = async function (req, res) {
 exports.emailActivate = async function (req, res) {
   const { token } = req.body;
   if (token) {
-    return res.json({ error: "Don't have token" });
+    return res.json({ error: "Don't have token." });
   }
   await jwt.verify(token, process.env.JWT, async (error, openToken) => {
     if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired link." });
+      return res.status(400).json({ error: "Incorrect or Expired token." });
     }
     const { email, password } = openToken;
 
@@ -63,7 +63,7 @@ exports.emailActivate = async function (req, res) {
     let newUser = new User({ email, password });
     await newUser.save((error) => {
       if (error) {
-        return res.status(400).json({ error: "Don't activate" });
+        return res.status(400).json({ error: "New user not saved" });
       }
       res.json({
         message: "Singup success",
@@ -76,7 +76,7 @@ const verifyCode = function (user) {
   let newCode = new Code({ user: user, code: otp });
   newCode.save((error) => {
     if (error) {
-      return res.status(400).json({ error: "Code don't create" });
+      return res.status(400).json({ error: "Code for sms not  created" });
     }
   });
 
@@ -87,7 +87,7 @@ exports.logIn = async function (req, res) {
   const user = await User.findOne({ email });
 
   if (!user) {
-    return res.status(400).json({ error: `User don't exist ` });
+    return res.status(400).json({ error: `User don't exist in base ` });
   }
   if (user.password !== password) {
     return res.status(400).json({ error: `Bad password ` });
@@ -122,17 +122,17 @@ exports.logIn = async function (req, res) {
 exports.changePass = async function (req, res) {
   const { token, password, newpassword } = req.body;
   if (!token) {
-    return res.json({ error: "Don't have token" });
+    return res.json({ error: "Don't have token." });
   }
   await jwt.verify(token, process.env.LOGIN, async (error, openToken) => {
     if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired link." });
+      return res.status(400).json({ error: "Incorrect or Expired token." });
     }
     const { email } = openToken;
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ error: `User does't exist ` });
+      return res.status(400).json({ error: `User don't exist in base ` });
     }
 
     if (user.password !== password) {
@@ -143,9 +143,9 @@ exports.changePass = async function (req, res) {
       { password: newpassword },
       async (error) => {
         if (error) {
-          return res.status(400).json({ error: `Don't change ` });
+          return res.status(400).json({ error: `Password not change.` });
         }
-        return res.json({ message: `Change password` });
+        return res.json({ message: `Change password is successful.` });
       }
     );
   });
@@ -158,22 +158,22 @@ exports.smsrequest = async function (req, res) {
   }
   await jwt.verify(token, process.env.LOGIN, async (error, openToken) => {
     if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired link." });
+      return res.status(400).json({ error: "Incorrect or Expired token." });
     }
     const { email } = openToken;
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ error: `User does't exist ` });
+      return res.status(400).json({ error: `User don't exist in base ` });
     }
     await User.findOneAndUpdate(
       { email: email },
       { sms: sms, phone: phone },
       async (error) => {
         if (error) {
-          return res.status(400).json({ error: `Don't change ` });
+          return res.status(400).json({ error: `Parametars for this user don't change ` });
         }
-        return res.json({ message: `Change parametars` });
+        return res.json({ message: `Change parametars in base and repeat login` });
       }
     );
   });
