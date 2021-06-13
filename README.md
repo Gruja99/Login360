@@ -3,6 +3,8 @@
 
 Instalirati npm install zatim npm run dev
 
+Kreirati env fajl i upisati potrebne vrednosti
+
 1. Slanje email za token
 localhost:3000/singup
 Parametri: email i password
