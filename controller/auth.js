@@ -46,11 +46,8 @@ exports.emailActivate = async function (req, res) {
   if (!token) {
     return res.json({ error: "Don't have token." });
   }
-  await jwt.verify(token, process.env.JWT, async (error, openToken) => {
-    if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired token." });
-    }
-    const { email, cpassword } = openToken;
+  try{
+  const { email, cpassword }  = await jwt.verify(token, process.env.JWT)
     const user = await User.findOne({ email });
 
     if (user) {
@@ -68,7 +65,11 @@ exports.emailActivate = async function (req, res) {
         message: "Singup success",
       });
     });
-  });
+  }
+  catch(e)
+  {
+    res.status(400).json({ error: "Incorrect or Expired token." });
+  }
 };
 
 // create key for sms login
