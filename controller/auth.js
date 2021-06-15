@@ -176,7 +176,7 @@ exports.smsrequest = async function (req, res) {
         if (error) {
           return res.status(400).json({ error: `Parametars for this user don't change ` });
         }
-        return res.json({ message: `Change parametars in base and repeat login` });
+        return res.json({ message: `Data changed in base, now repeat login` });
       }
     );
   });

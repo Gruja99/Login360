@@ -8,10 +8,6 @@ const {
   smsrequest,
   smsverify,
 } = require("../controller/auth");
-/* GET home page. */
-router.get("/", function (req, res, next) {
-  res.render("index", { title: "Luka Grujic" });
-});
 
 router.post("/singup", singup);
 router.post("/email-activate", emailActivate);
