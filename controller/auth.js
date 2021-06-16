@@ -61,28 +61,28 @@ exports.emailActivate = async function (req, res) {
   if (!token) {
     return res.json({ error: "Don't have token." });
   }
-  try {
-    const { email, cpassword } = await jwt.verify(token, process.env.JWT);
-    const user = await User.findOne({ email });
-
-    if (user) {
-      return res
-        .status(400)
-        .json({ error: `Email ${user.email} exist in application` });
+    const openToken = await jwt.verify(token, process.env.JWT);
+    if (!openToken) {
+      res.status(400).json({ error: "Incorrect or Expired token." });
     }
-
-    let newUser = new User({ email, password: cpassword });
-    await newUser.save((error) => {
-      if (error) {
-        return res.status(400).json({ error: "New user not saved" });
-      }
-      res.json({
-        message: "Singup success",
-      });
-    });
-  } catch (e) {
-    res.status(400).json({ error: "Incorrect or Expired token." });
+  const { email, cpassword } = openToken;
+  const user = await User.findOne({ email });
+  
+  if (user) {
+    return res
+      .status(400)
+      .json({ error: `Email ${user.email} exist in application` });
   }
+
+  let newUser = new User({ email, password: cpassword });
+  await newUser.save((error) => {
+    if (error) {
+      return res.status(400).json({ error: "New user not saved" });
+    }
+    res.json({
+      message: "Singup success",
+    });
+  });
 };
 
 // create key for sms login
@@ -123,18 +123,20 @@ exports.logIn = async function (req, res) {
   }
 
   const otp = verifyCode(user._id);
-
-  await tw.messages
-    .create({
+  try {
+    const smsRes = await tw.messages.create({
       body: `Verify code is ${otp}`,
       from: process.env.NUMBER,
       to: user.phone,
-    })
-    .catch((error) => {
-      res
-        .status(400)
-        .json({ error: `SMS for verification don't send: ${error.message}` });
     });
+    if (!smsRes) {
+      return res.status(400).json({ error: `SMSi for verification don't send` });
+    }
+  } catch (error) {
+   return  res
+      .status(400)
+      .json({ error: `SMSa for verification don't send` });
+  }
 
   return res.status(200).json({ message: `Your SMS send for login ` });
 };
@@ -218,9 +220,8 @@ exports.smsrequest = async function (req, res) {
 };
 
 /**
- * Verify sms
+ * Write number from sms
  * @param {string} code Code.
-
  */
 exports.smsverify = async function (req, res) {
   const { code } = req.body;
