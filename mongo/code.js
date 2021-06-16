@@ -14,7 +14,7 @@ const CodeSchema = new Schema(
     smscode: {
       type: String,
     },
-   
+    createdAt: { type: Date, expires: '5m', default: Date.now }
   },
   {
     timestamps: true,

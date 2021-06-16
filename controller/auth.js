@@ -4,6 +4,8 @@ require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const mailgun = require("mailgun-js");
 const bcrypt = require("bcrypt");
+const { validatePassword, validateEmail } = require("../service/validate");
+const { sendmail, verifyCode, sendSMS } = require("../service/service");
 const mg = mailgun({ apiKey: process.env.APIKEY, domain: process.env.DOMAIN });
 
 const accountSid = process.env.SID;
@@ -16,6 +18,15 @@ const tw = require("twilio")(accountSid, authToken);
  */
 exports.singup = async function (req, res) {
   const { email, password } = req.body;
+  if (
+    !email ||
+    !validateEmail(email) ||
+    !password ||
+    !validatePassword(password)
+  ) {
+    return res.status(400).json({ error: `Email and password must have form` });
+  }
+
   const user = await User.findOne({ email });
   if (user) {
     return res
@@ -30,17 +41,9 @@ exports.singup = async function (req, res) {
     expiresIn: "50m",
   });
   // set data for email
-  const data = {
-    from: "luka@grujic.com",
-    to: email,
-    subject: "Account activate link",
-    html: `
-    <h1>Open link:</h1>
-    <p>${process.env.URL}/activate/${token}</p>
-    `,
-  };
+  const emailData = sendmail(email, token);
   try {
-    const mgResponse = await mg.messages().send(data);
+    const mgResponse = await mg.messages().send(emailData);
     if (!mgResponse) {
       return res
         .status(400)
@@ -63,10 +66,13 @@ exports.emailActivate = async function (req, res) {
     return res.json({ error: "Don't have token." });
   }
   // verification token
-  const openToken = await jwt.verify(token, process.env.JWT);
-  if (!openToken) {
-    res.status(400).json({ error: "Incorrect or Expired token." });
+  var openToken;
+  try {
+    openToken = await jwt.verify(token, process.env.JWT);
+  } catch (e) {
+    return res.status(400).json({ error: "Incorrect or Expired token." });
   }
+
   const { email, cpassword } = openToken;
   const user = await User.findOne({ email });
 
@@ -82,22 +88,9 @@ exports.emailActivate = async function (req, res) {
       return res.status(400).json({ error: "New user not saved" });
     }
     res.json({
-      message: "Singup success",
+      message: "You have successfully signed up",
     });
   });
-};
-
-// create key for sms login
-const verifyCode = function (user) {
-  const otp = Math.floor(10000 + Math.random() * 90000);
-  let newCode = new Code({ user: user, code: otp });
-  newCode.save((error) => {
-    if (error) {
-      return res.status(400).json({ error: "Code for sms not  created" });
-    }
-  });
-
-  return newCode.code;
 };
 /**
  * Login part
@@ -107,6 +100,14 @@ const verifyCode = function (user) {
  */
 exports.logIn = async function (req, res) {
   const { email, password } = req.body;
+  if (
+    !email ||
+    !validateEmail(email) ||
+    !password ||
+    !validatePassword(password)
+  ) {
+    return res.status(400).json({ error: `Email and password must have form` });
+  }
   const user = await User.findOne({ email });
   // check all parameters
   if (!user) {
@@ -125,20 +126,16 @@ exports.logIn = async function (req, res) {
   }
   // create code for sms
   const otp = verifyCode(user._id);
+  const smsData = sendSMS(otp, user.phone);
   // try to send SMS message
+
   try {
-    const smsRes = await tw.messages.create({
-      body: `Verify code is ${otp}`,
-      from: process.env.NUMBER,
-      to: user.phone,
-    });
+    const smsRes = await tw.messages.create(smsData);
     if (!smsRes) {
-      return res
-        .status(400)
-        .json({ error: `SMSi for verification don't send` });
+      return res.status(400).json({ error: `SMS for verification don't send` });
     }
   } catch (error) {
-    return res.status(400).json({ error: `SMSa for verification don't send` });
+    return res.status(400).json({ error: `SMS for verification don't send` });
   }
 
   return res.status(200).json({ message: `Your SMS send for login ` });
@@ -154,38 +151,38 @@ exports.changePass = async function (req, res) {
   if (!token) {
     return res.json({ error: "Don't have token." });
   }
-  await jwt.verify(token, process.env.LOGIN, async (error, openToken) => {
-    if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired token." });
-    }
-    const { email } = openToken;
-    const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({ error: `User don't exist in base ` });
-    }
-    // check password
-    const checkpassword = await bcrypt.compare(password, user.password);
-    if (!checkpassword) {
-      return res.status(400).json({ error: `Bad password ` });
-    }
-    // replace with new password
-    const diferentPassword = await bcrypt
-      .hash(newpassword, 10)
-      .catch((error) => {
-        res.json({ error });
-      });
+  var openToken;
+  try {
+    openToken = await jwt.verify(token, process.env.LOGIN);
+  } catch (e) {
+    return res.status(400).json({ error: "Incorrect or Expired token." });
+  }
+
+  const { email } = openToken;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(400).json({ error: `User don't exist in base ` });
+  }
+  // check password
+  const checkpassword = await bcrypt.compare(password, user.password);
+  if (!checkpassword) {
+    return res.status(400).json({ error: `Bad password ` });
+  }
+  // replace with new password
+  const diferentPassword = await bcrypt.hash(newpassword, 10).catch((error) => {
+    res.json({ error });
+  });
+  try {
     await User.findOneAndUpdate(
       { email: email },
-      { password: diferentPassword },
-      async (error) => {
-        if (error) {
-          return res.status(400).json({ error: `Password not change.` });
-        }
-        return res.json({ message: `Change password is successful.` });
-      }
+      { password: diferentPassword }
     );
-  });
+    return res.json({ message: `Change password is successful.` });
+  } catch (e) {
+    return res.status(400).json({ error: `Password not change.` });
+  }
 };
 /**
  * Request for sms two way verification
@@ -197,32 +194,29 @@ exports.changePass = async function (req, res) {
 exports.smsrequest = async function (req, res) {
   const { token, sms, phone } = req.body;
   if (!token || !sms || !phone) {
-    return res.json({ error: "Don't have parametars" });
+    return res.json({ error: "Don't have parametars or sms set false" });
   }
-  await jwt.verify(token, process.env.LOGIN, async (error, openToken) => {
-    if (error) {
-      return res.status(400).json({ error: "Incorrect or Expired token." });
-    }
-    const { email } = openToken;
-    const user = await User.findOne({ email });
+  var openToken;
+  try {
+    openToken = await jwt.verify(token, process.env.LOGIN);
+  } catch (e) {
+    return res.status(400).json({ error: "Incorrect or Expired token." });
+  }
+  const { email } = openToken;
+  const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({ error: `User don't exist in base ` });
-    }
-    // Find that user than add sms and phone
-    await User.findOneAndUpdate(
-      { email: email },
-      { sms: sms, phone: phone },
-      async (error) => {
-        if (error) {
-          return res
-            .status(400)
-            .json({ error: `Parametars for this user don't change ` });
-        }
-        return res.json({ message: `Data changed in base, now repeat login` });
-      }
-    );
-  });
+  if (!user) {
+    return res.status(400).json({ error: `User don't exist in base ` });
+  }
+  // Find that user than add sms and phone
+  try {
+    await User.findOneAndUpdate({ email: email }, { sms: sms, phone: phone });
+    return res.json({ message: `Data changed in base, now repeat login` });
+  } catch (e) {
+    return res
+      .status(400)
+      .json({ error: `Parametars for this user don't change ` });
+  }
 };
 
 /**
@@ -232,23 +226,25 @@ exports.smsrequest = async function (req, res) {
 exports.smsverify = async function (req, res) {
   const { code } = req.body;
   if (!code) {
-    return res.json({ error: "Don't have code in input field." });
+    return res.status(400).json({ error: "Don't have code in input field." });
   }
   // Find user width that code
-  const userCode = await Code.findOne({ code: code }, (error) => {
-    if (error) {
-      return res.json({ error: "Don't have code in base." });
-    }
-  }).populate({ path: "user" });
+  try {
+    const userCode = await Code.findOne({ code: code }).populate({
+      path: "user",
+    });
 
-  if (!userCode.user) {
-    return res.json({ error: "Don't have user in base." });
+    if (!userCode.user) {
+      return res.status(400).json({ error: "Don't have user in base." });
+    }
+    let email = userCode.user.email;
+    let password = userCode.user.password;
+    // create token agen
+    const token = await jwt.sign({ email, password }, process.env.LOGIN, {
+      expiresIn: "3d",
+    });
+    return res.json({ token });
+  } catch (e) {
+    return res.status(400).json({ error: "Don't have code in base." });
   }
-  let email = userCode.user.email;
-  let password = userCode.user.password;
-  // create token agen
-  const token = await jwt.sign({ email, password }, process.env.LOGIN, {
-    expiresIn: "3d",
-  });
-  return res.json({ token });
 };
