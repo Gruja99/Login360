@@ -22,13 +22,14 @@ exports.singup = async function (req, res) {
       .status(400)
       .json({ error: `Email ${user.email} exist in application` });
   }
+  // hash password
   const cpassword = await bcrypt.hash(password, 10).catch((error) => {
     res.json({ error });
   });
   const token = await jwt.sign({ email, cpassword }, process.env.JWT, {
     expiresIn: "50m",
   });
-
+  // set data for email
   const data = {
     from: "luka@grujic.com",
     to: email,
@@ -61,19 +62,20 @@ exports.emailActivate = async function (req, res) {
   if (!token) {
     return res.json({ error: "Don't have token." });
   }
-    const openToken = await jwt.verify(token, process.env.JWT);
-    if (!openToken) {
-      res.status(400).json({ error: "Incorrect or Expired token." });
-    }
+  // verification token
+  const openToken = await jwt.verify(token, process.env.JWT);
+  if (!openToken) {
+    res.status(400).json({ error: "Incorrect or Expired token." });
+  }
   const { email, cpassword } = openToken;
   const user = await User.findOne({ email });
-  
+
   if (user) {
     return res
       .status(400)
       .json({ error: `Email ${user.email} exist in application` });
   }
-
+  // create user in base
   let newUser = new User({ email, password: cpassword });
   await newUser.save((error) => {
     if (error) {
@@ -106,11 +108,11 @@ const verifyCode = function (user) {
 exports.logIn = async function (req, res) {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
-
+  // check all parameters
   if (!user) {
     return res.status(400).json({ error: `User don't exist in base ` });
   }
-
+  // check password from base and body
   const checkpassword = await bcrypt.compare(password, user.password);
   if (!checkpassword) {
     return res.status(400).json({ error: `Bad password ` });
@@ -121,8 +123,9 @@ exports.logIn = async function (req, res) {
     });
     return res.json({ token });
   }
-
+  // create code for sms
   const otp = verifyCode(user._id);
+  // try to send SMS message
   try {
     const smsRes = await tw.messages.create({
       body: `Verify code is ${otp}`,
@@ -130,12 +133,12 @@ exports.logIn = async function (req, res) {
       to: user.phone,
     });
     if (!smsRes) {
-      return res.status(400).json({ error: `SMSi for verification don't send` });
+      return res
+        .status(400)
+        .json({ error: `SMSi for verification don't send` });
     }
   } catch (error) {
-   return  res
-      .status(400)
-      .json({ error: `SMSa for verification don't send` });
+    return res.status(400).json({ error: `SMSa for verification don't send` });
   }
 
   return res.status(200).json({ message: `Your SMS send for login ` });
@@ -161,10 +164,12 @@ exports.changePass = async function (req, res) {
     if (!user) {
       return res.status(400).json({ error: `User don't exist in base ` });
     }
+    // check password
     const checkpassword = await bcrypt.compare(password, user.password);
     if (!checkpassword) {
       return res.status(400).json({ error: `Bad password ` });
     }
+    // replace with new password
     const diferentPassword = await bcrypt
       .hash(newpassword, 10)
       .catch((error) => {
@@ -204,6 +209,7 @@ exports.smsrequest = async function (req, res) {
     if (!user) {
       return res.status(400).json({ error: `User don't exist in base ` });
     }
+    // Find that user than add sms and phone
     await User.findOneAndUpdate(
       { email: email },
       { sms: sms, phone: phone },
@@ -228,7 +234,7 @@ exports.smsverify = async function (req, res) {
   if (!code) {
     return res.json({ error: "Don't have code in input field." });
   }
-
+  // Find user width that code
   const userCode = await Code.findOne({ code: code }, (error) => {
     if (error) {
       return res.json({ error: "Don't have code in base." });
@@ -240,7 +246,7 @@ exports.smsverify = async function (req, res) {
   }
   let email = userCode.user.email;
   let password = userCode.user.password;
-
+  // create token agen
   const token = await jwt.sign({ email, password }, process.env.LOGIN, {
     expiresIn: "3d",
   });
